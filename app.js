@@ -4,7 +4,9 @@ import userRoutes from './src/routes/user.routes.js';
 import courseRoutes from './src/routes/course.routes.js';
 import { catchError } from './src/services/error.middleware.js';
 import connectDB from './src/config/db.js';
+import logger from './src/library/logger.js';
 
+logger.info('server starting...');
 const app = express();
 app.use(express.json());
 connectDB

@@ -1,6 +1,9 @@
 import bcrypt from 'bcrypt';
 import Joi from 'joi';
 import User from '../models/user.model.js';
+import { otpGenerator } from '../library/otp-generator.js';
+import { getCache, setCache } from '../library/cache.js';
+import { refTokenWriteCookie } from '../library/write-cookie.js';
 import { catchError } from '../services/error.middleware.js';
 
 export class UserController {
@@ -32,6 +35,70 @@ export class UserController {
             catchError(error, res);
         }
     }
+
+    async signInUser(req, res) {
+        try {
+            const { username, password } = req.body;
+            const user = await User.findOne({ username });
+            if (!user) {
+                return catchError(res, 404, 'User not found');
+            }
+            const isMatchPassword = await decode(password, admin.hashedPassword);
+            if (!isMatchPassword) {
+                return catchError(res, 400, 'Invalid password');
+            }
+            const otp = otpGenerator();
+            const mailMessage = {
+                from: process.env.EMAIL_USER,
+                to: process.env.EMAIL_USER,
+                subject: 'couser-api',
+                text: otp,
+            };
+
+            transporter.sendMail(mailMessage, function (err, info) {
+                if (err) {
+                    console.log(`Error on sending to mail: ${err}`);
+                    return catchError(res, 400, err);
+                } else {
+                    console.log(info);
+                    setCache(admin.username, otp);
+                }
+            });
+            return res.status(200).json({
+                statusCode: 200,
+                message: 'success',
+                data: {},
+            });
+        } catch (error) {
+            return catchError(res, 500, error.message);
+        }
+    }
+
+    async confirmSigninUser(req, res) {
+        try {
+            const { username, otp } = req.body;
+            const user = await User.findOne({ username });
+            if (!user) {
+                return catchError(res, 404, 'User not found');
+            }
+            const otpCache = getCache(username);
+            if (!otpCache || otp != otpCache) {
+                return catchError(res, 400, 'OTP expired');
+            }
+            const payload = { id: user._id, role: user.role };
+            const accessToken = generateAccessToken(payload);
+            const refreshToken = generateRefreshToken(payload);
+            refTokenWriteCookie(res, 'refreshTokenUser', refreshToken);
+            return res.status(200).json({
+                statusCode: 200,
+                message: 'success',
+                data: accessToken,
+            });
+        } catch (error) {
+            return catchError(res, 500, error.message);
+        }
+    }
+
     async getAllUsers(req, res) {
         try {
             const users = await User.find();

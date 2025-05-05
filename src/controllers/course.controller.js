@@ -25,6 +25,7 @@ export class Courses {
             catchError(error, res);
         }
     }
+
     async getAllCourses(req, res) {
         try {
             const courses = await Course.find();
@@ -90,4 +91,5 @@ export class Courses {
             catchError(error, res);
         }
     }
+
 }
